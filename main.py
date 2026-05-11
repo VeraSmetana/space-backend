@@ -35,6 +35,17 @@ def search(name: str = None):
         results = [obj for obj in results if name.lower() in obj["pl_name"].lower()]
     return results
 
+def get_type(obj):
+    name = obj.get("pl_name", "").lower()
+
+    # basic rules (you can improve later)
+    if "galaxy" in name:
+        return "galaxy"
+    elif "sun" in name or "star" in name or "centauri" in name:
+        return "star"
+    else:
+        return "exoplanet"
+
 def make_description(obj):
     name = obj.get("pl_name", "This planet")
     star = obj.get("hostname", "its star")
@@ -61,6 +72,7 @@ def get_object(name: str):
     for obj in cache_data:
         if obj.get("pl_name") == name:
 
+            obj["type"] = get_type(obj)
             obj["description"] = make_description(obj)
 
             # Add external reference links
