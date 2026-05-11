@@ -216,17 +216,20 @@ def make_description(obj):
 @app.get("/object")
 def get_object(name: str):
 
+    name = name.strip().lower()
+
     for obj in cache_data:
 
-        if obj.get("name") == name or obj.get("pl_name") == name:
+        obj_name = (obj.get("name") or obj.get("pl_name") or "").lower()
+
+        if obj_name == name:
 
             obj["description"] = make_description(obj)
 
-            obj_name = obj.get("name") or obj.get("pl_name")
+            obj_name_raw = obj.get("name") or obj.get("pl_name")
 
             obj["links"] = [
-                f"https://exoplanetarchive.ipac.caltech.edu/overview/{obj_name}",
-                f"https://en.wikipedia.org/wiki/{obj_name.replace(' ', '_')}"
+                f"https://en.wikipedia.org/wiki/{obj_name_raw.replace(' ', '_')}",
             ]
 
             return obj
