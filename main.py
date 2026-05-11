@@ -12,7 +12,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-cache_data = []
+cache_data: list[dict] = []
 
 import urllib.parse
 
@@ -41,12 +41,52 @@ def load_simbad_stars():
         stars.append({
             "name": row[0],
             "type": "star",
+            "distance": None,
             "ra": row[1],
             "dec": row[2],
             "description": "Star from SIMBAD catalog"
         })
 
     return stars
+
+def load_galaxies():
+    url = "https://ned.ipac.caltech.edu/tap/sync"
+
+    query = """
+    SELECT
+        objname,
+        objtype,
+        z,
+        ra,
+        dec
+    FROM NEDTAP
+    WHERE objtype = 'G'
+    LIMIT 50
+    """
+
+    params = {
+        "query": query,
+        "format": "json"
+    }
+
+    response = requests.get(url, params=params)
+
+    data = response.json()
+
+    galaxies = []
+
+    for row in data.get("data", []):
+        galaxies.append({
+            "name": row[0],
+            "type": "galaxy",
+            "distance": None,
+            "redshift": row[2],
+            "ra": row[3],
+            "dec": row[4],
+            "description": "Galaxy from NASA/IPAC Extragalactic Database"
+        })
+
+    return galaxies
 
 def load_data():
     global cache_data
@@ -76,20 +116,10 @@ def load_data():
     ]
 
     stars = load_simbad_stars()
+    galaxies = load_galaxies()
 
-    cache_data = planets + stars
+    cache_data[:] = planets + stars + galaxies
 
-def normalize_object(obj):
-    return {
-        "name": obj.get("name") or obj.get("pl_name"),
-        "type": obj.get("type", "exoplanet"),
-        "distance": obj.get("distance") or obj.get("sy_dist"),
-        "mass": obj.get("mass") or obj.get("pl_bmasse"),
-        "radius": obj.get("radius") or obj.get("pl_rade"),
-        "discoverymethod": obj.get("discoverymethod"),
-        "hostname": obj.get("hostname"),
-        "description": obj.get("description", ""),
-    }
 
 @app.get("/")
 def home():
@@ -121,52 +151,53 @@ def search(name: str = None, type: str = None, distance: float = None):
 
     return results
 
-def get_type(obj):
-    name = obj.get("pl_name", "").lower()
-
-    # basic rules (you can improve later)
-    if "galaxy" in name:
-        return "galaxy"
-    elif "sun" in name or "star" in name or "centauri" in name:
-        return "star"
-    else:
-        return "exoplanet"
 
 def make_description(obj):
-    name = obj.get("pl_name", "This planet")
-    star = obj.get("hostname", "its star")
-    dist = obj.get("sy_dist")
-    mass = obj.get("pl_bmasse")
 
-    text = f"{name} orbits the star {star}. "
+    name = obj.get("name") or obj.get("pl_name") or "Unknown object"
+    obj_type = obj.get("type", "unknown")
+
+    dist = obj.get("distance") or obj.get("sy_dist")
+    mass = obj.get("mass") or obj.get("pl_bmasse")
+
+    text = f"{name} is a {obj_type}. "
 
     if dist:
-        text += f"It is about {dist} light-years away from Earth. "
+        text += f"It is about {dist} light-years away. "
 
-    if mass:
+    if obj_type == "exoplanet" and mass:
         if mass < 2:
-            text += "It is likely a rocky, Earth-like planet. "
+            text += "It is likely a rocky Earth-like planet. "
         elif mass < 10:
-            text += "It is a super-Earth larger than Earth. "
+            text += "It is a super-Earth. "
         else:
-            text += "It is a gas giant similar to Jupiter. "
+            text += "It is a gas giant. "
 
     return text
 
 @app.get("/object")
 def get_object(name: str):
     for obj in cache_data:
-        if obj.get("pl_name") == name:
+        if obj.get("name") == name or obj.get("pl_name") == name:
 
-            obj["type"] = get_type(obj)
             obj["description"] = make_description(obj)
 
-            # Add external reference links
+            obj_name = obj.get("name") or obj.get("pl_name")
+
             obj["links"] = [
-                f"https://exoplanetarchive.ipac.caltech.edu/overview/{obj.get('pl_name')}",
-                f"https://en.wikipedia.org/wiki/{obj.get('pl_name').replace(' ', '_')}"
+                f"https://exoplanetarchive.ipac.caltech.edu/overview/{obj_name}",
+                f"https://en.wikipedia.org/wiki/{obj_name.replace(' ', '_')}"
             ]
 
             return obj
 
     return {"error": "Object not found"}
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_data()
+    yield
+
+app = FastAPI(lifespan=lifespan)
