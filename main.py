@@ -32,8 +32,15 @@ def load_simbad_stars():
 
     full_url = url + "?" + urllib.parse.urlencode(params)
 
-    response = requests.get(full_url)
+response = requests.get(full_url)
+
+if response.status_code != 200:
+    return []
+
+try:
     data = response.json()
+except Exception:
+    return []
 
     stars = []
 
@@ -69,9 +76,15 @@ def load_galaxies():
         "format": "json"
     }
 
-    response = requests.get(url, params=params)
+ response = requests.get(full_url)
 
+if response.status_code != 200:
+    return []
+
+try:
     data = response.json()
+except Exception:
+    return []
 
     galaxies = []
 
@@ -98,8 +111,15 @@ def load_data():
         "pl_orbper,hostname+from+ps&format=json"
     )
 
-    response = requests.get(url)
-    planets = response.json()
+response = requests.get(url)
+
+if response.status_code != 200:
+    planets = []
+else:
+    try:
+        planets = response.json()
+    except Exception:
+        planets = []
 
     planets = [
         {
