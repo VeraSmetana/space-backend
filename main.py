@@ -1,218 +1,242 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import urllib.parse
 
 app = FastAPI()
 
 app.add_middleware(
-	CORSMiddleware,
-	allow_origins=["*"],
-	allow_credentials=True,
-	allow_methods=["*"],
-	allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
-cache_data: list[dict] = []
+cache_data = []
 
-import urllib.parse
 
+# -----------------------------
+# SIMBAD STARS
+# -----------------------------
 def load_simbad_stars():
-	query = """
-	SELECT main_id, ra, dec, otype
-	FROM basic
-	WHERE otype = 'Star'
-	LIMIT 50
-	"""
+    query = """
+    SELECT main_id, ra, dec, otype
+    FROM basic
+    WHERE otype = 'Star'
+    LIMIT 50
+    """
 
-	url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
-	params = {
-		"query": query,
-		"format": "json"
-	}
+    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
+    params = {
+        "query": query,
+        "format": "json"
+    }
 
-	full_url = url + "?" + urllib.parse.urlencode(params)
+    full_url = url + "?" + urllib.parse.urlencode(params)
+    response = requests.get(full_url)
 
-response = requests.get(full_url)
+    if response.status_code != 200:
+        return []
 
-if response.status_code != 200:
-	return []
+    try:
+        data = response.json()
+    except Exception:
+        return []
 
-try:
-	data = response.json()
-except Exception:
-	return []
+    stars = []
 
-	stars = []
+    for row in data.get("data", []):
+        stars.append({
+            "name": row[0],
+            "type": "star",
+            "distance": None,
+            "ra": row[1],
+            "dec": row[2],
+            "description": "Star from SIMBAD catalog"
+        })
 
-	for row in data.get("data", []):
-		stars.append({
-			"name": row[0],
-			"type": "star",
-			"distance": None,
-			"ra": row[1],
-			"dec": row[2],
-			"description": "Star from SIMBAD catalog"
-		})
+    return stars
 
-	return stars
 
+# -----------------------------
+# GALAXIES (NED)
+# -----------------------------
 def load_galaxies():
-	url = "https://ned.ipac.caltech.edu/tap/sync"
+    url = "https://ned.ipac.caltech.edu/tap/sync"
 
-	query = """
-	SELECT
-		objname,
-		objtype,
-		z,
-		ra,
-		dec
-	FROM NEDTAP
-	WHERE objtype = 'G'
-	LIMIT 50
-	"""
+    query = """
+    SELECT objname, objtype, z, ra, dec
+    FROM NEDTAP
+    WHERE objtype = 'G'
+    LIMIT 50
+    """
 
-	params = {
-		"query": query,
-		"format": "json"
-	}
+    params = {
+        "query": query,
+        "format": "json"
+    }
 
- response = requests.get(full_url)
+    response = requests.get(url, params=params)
 
-if response.status_code != 200:
-	return []
+    if response.status_code != 200:
+        return []
 
-try:
-	data = response.json()
-except Exception:
-	return []
+    try:
+        data = response.json()
+    except Exception:
+        return []
 
-	galaxies = []
+    galaxies = []
 
-	for row in data.get("data", []):
-		galaxies.append({
-			"name": row[0],
-			"type": "galaxy",
-			"distance": None,
-			"redshift": row[2],
-			"ra": row[3],
-			"dec": row[4],
-			"description": "Galaxy from NASA/IPAC Extragalactic Database"
-		})
+    for row in data.get("data", []):
+        galaxies.append({
+            "name": row[0],
+            "type": "galaxy",
+            "distance": None,
+            "redshift": row[2],
+            "ra": row[3],
+            "dec": row[4],
+            "description": "Galaxy from NASA/IPAC Extragalactic Database"
+        })
 
-	return galaxies
+    return galaxies
 
+
+# -----------------------------
+# LOAD ALL DATA
+# -----------------------------
 def load_data():
-	global cache_data
+    global cache_data
 
-	# NASA exoplanets
-	url = (
-		"https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query="
-		"select+pl_name,sy_dist,discoverymethod,pl_bmasse,pl_rade,"
-		"pl_orbper,hostname+from+ps&format=json"
-	)
+    url = (
+        "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query="
+        "select+pl_name,sy_dist,discoverymethod,pl_bmasse,pl_rade,"
+        "pl_orbper,hostname+from+ps&format=json"
+    )
 
-response = requests.get(url)
+    response = requests.get(url)
 
-if response.status_code != 200:
-	planets = []
-else:
-	try:
-		planets = response.json()
-	except Exception:
-		planets = []
+    if response.status_code != 200:
+        planets_raw = []
+    else:
+        try:
+            planets_raw = response.json()
+        except Exception:
+            planets_raw = []
 
-	planets = [
-		{
-			"name": p.get("pl_name"),
-			"type": "exoplanet",
-			"distance": p.get("sy_dist"),
-			"mass": p.get("pl_bmasse"),
-			"radius": p.get("pl_rade"),
-			"discoverymethod": p.get("discoverymethod"),
-			"hostname": p.get("hostname"),
-			"description": None
-		}
-		for p in planets
-	]
+    planets = []
 
-	stars = load_simbad_stars()
-	galaxies = load_galaxies()
+    for p in planets_raw:
+        planets.append({
+            "name": p.get("pl_name"),
+            "type": "exoplanet",
+            "distance": p.get("sy_dist"),
+            "mass": p.get("pl_bmasse"),
+            "radius": p.get("pl_rade"),
+            "discoverymethod": p.get("discoverymethod"),
+            "hostname": p.get("hostname"),
+            "description": None
+        })
 
-	cache_data[:] = planets + stars + galaxies
+    stars = load_simbad_stars()
+    galaxies = load_galaxies()
+
+    cache_data[:] = planets + stars + galaxies
 
 
+# -----------------------------
+# ROOT
+# -----------------------------
 @app.get("/")
 def home():
-	return {"message": "Space backend is running"}
+    return {"message": "Space backend is running"}
 
+
+# -----------------------------
+# SEARCH
+# -----------------------------
 @app.get("/search")
 def search(name: str = None, type: str = None, distance: float = None):
 
-	results = cache_data
+    results = cache_data
 
-	if name:
-		results = [
-			obj for obj in results
-			if name.lower() in (obj.get("name") or "").lower()
-		]
+    if name:
+        results = [
+            obj for obj in results
+            if name.lower() in (obj.get("name") or "").lower()
+        ]
 
-	if type:
-		results = [
-			obj for obj in results
-			if obj.get("type") == type
-		]
+    if type:
+        results = [
+            obj for obj in results
+            if obj.get("type") == type
+        ]
 
-	if distance:
-		results = [
-			obj for obj in results
-			if obj.get("distance") is not None
-			and obj["distance"] <= float(distance)
-		]
+    if distance:
+        results = [
+            obj for obj in results
+            if obj.get("distance") is not None
+            and obj["distance"] <= float(distance)
+        ]
 
-	return results
+    return results
 
 
+# -----------------------------
+# DESCRIPTION
+# -----------------------------
 def make_description(obj):
 
-	name = obj.get("name") or obj.get("pl_name") or "Unknown object"
-	obj_type = obj.get("type", "unknown")
+    name = obj.get("name") or obj.get("pl_name") or "Unknown object"
+    obj_type = obj.get("type", "unknown")
 
-	dist = obj.get("distance") or obj.get("sy_dist")
-	mass = obj.get("mass") or obj.get("pl_bmasse")
+    dist = obj.get("distance") or obj.get("sy_dist")
+    mass = obj.get("mass") or obj.get("pl_bmasse")
 
-	text = f"{name} is a {obj_type}. "
+    text = f"{name} is a {obj_type}. "
 
-	if dist:
-		text += f"It is about {dist} light-years away. "
+    if dist:
+        text += f"It is about {dist} light-years away. "
 
-	if obj_type == "exoplanet" and mass:
-		if mass < 2:
-			text += "It is likely a rocky Earth-like planet. "
-		elif mass < 10:
-			text += "It is a super-Earth. "
-		else:
-			text += "It is a gas giant. "
+    if obj_type == "exoplanet" and mass:
+        if mass < 2:
+            text += "It is likely a rocky Earth-like planet. "
+        elif mass < 10:
+            text += "It is a super-Earth. "
+        else:
+            text += "It is a gas giant. "
 
-	return text
+    return text
 
+
+# -----------------------------
+# SINGLE OBJECT
+# -----------------------------
 @app.get("/object")
 def get_object(name: str):
-	for obj in cache_data:
-		if obj.get("name") == name or obj.get("pl_name") == name:
 
-			obj["description"] = make_description(obj)
+    for obj in cache_data:
 
-			obj_name = obj.get("name") or obj.get("pl_name")
+        if obj.get("name") == name or obj.get("pl_name") == name:
 
-			obj["links"] = [
-				f"https://exoplanetarchive.ipac.caltech.edu/overview/{obj_name}",
-				f"https://en.wikipedia.org/wiki/{obj_name.replace(' ', '_')}"
-			]
+            obj["description"] = make_description(obj)
 
-			return obj
+            obj_name = obj.get("name") or obj.get("pl_name")
 
-	return {"error": "Object not found"}
+            obj["links"] = [
+                f"https://exoplanetarchive.ipac.caltech.edu/overview/{obj_name}",
+                f"https://en.wikipedia.org/wiki/{obj_name.replace(' ', '_')}"
+            ]
 
+            return obj
+
+    return {"error": "Object not found"}
+
+
+# -----------------------------
+# STARTUP
+# -----------------------------
 @app.on_event("startup")
 def startup_event():
-	load_data()
+    load_data()
