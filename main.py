@@ -16,7 +16,9 @@ cache_data = []
 
 def load_data():
     global cache_data
-    url = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+top+50+pl_name,sy_dist,discoverymethod+from+ps&format=json"
+    url = ("https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query="
+        "select+pl_name,sy_dist,discoverymethod,pl_bmasse,pl_rade,"
+        "pl_orbper,hostname+from+ps&format=json")
     response = requests.get(url)
     cache_data = response.json()
 
