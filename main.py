@@ -121,10 +121,6 @@ def search(name: str = None, type: str = None, distance: float = None):
 
     return results
 
-@app.get("/debug-stars")
-def debug_stars():
-    return load_simbad_stars()
-
 def get_type(obj):
     name = obj.get("pl_name", "").lower()
 
