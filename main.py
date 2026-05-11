@@ -14,26 +14,116 @@ app.add_middleware(
 
 cache_data = []
 
+import urllib.parse
+
+def load_simbad_stars():
+    query = """
+    SELECT main_id, ra, dec, otype
+    FROM basic
+    WHERE otype = 'Star'
+    LIMIT 50
+    """
+
+    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
+    params = {
+        "query": query,
+        "format": "json"
+    }
+
+    full_url = url + "?" + urllib.parse.urlencode(params)
+
+    response = requests.get(full_url)
+    data = response.json()
+
+    stars = []
+
+    for row in data.get("data", []):
+        stars.append({
+            "name": row[0],
+            "type": "star",
+            "ra": row[1],
+            "dec": row[2],
+            "description": "Star from SIMBAD catalog"
+        })
+
+    return stars
+
 def load_data():
     global cache_data
-    url = ("https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query="
-        "select+pl_name,sy_dist,discoverymethod,pl_bmasse,pl_rade,"
-        "pl_orbper,hostname+from+ps&format=json")
-    response = requests.get(url)
-    cache_data = response.json()
 
-load_data()
+    # NASA exoplanets
+    url = (
+        "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query="
+        "select+pl_name,sy_dist,discoverymethod,pl_bmasse,pl_rade,"
+        "pl_orbper,hostname+from+ps&format=json"
+    )
+
+    response = requests.get(url)
+    planets = response.json()
+
+    planets = [
+        {
+            "name": p.get("pl_name"),
+            "type": "exoplanet",
+            "distance": p.get("sy_dist"),
+            "mass": p.get("pl_bmasse"),
+            "radius": p.get("pl_rade"),
+            "discoverymethod": p.get("discoverymethod"),
+            "hostname": p.get("hostname"),
+            "description": None
+        }
+        for p in planets
+    ]
+
+    stars = load_simbad_stars()
+
+    cache_data = planets + stars
+
+def normalize_object(obj):
+    return {
+        "name": obj.get("name") or obj.get("pl_name"),
+        "type": obj.get("type", "exoplanet"),
+        "distance": obj.get("distance") or obj.get("sy_dist"),
+        "mass": obj.get("mass") or obj.get("pl_bmasse"),
+        "radius": obj.get("radius") or obj.get("pl_rade"),
+        "discoverymethod": obj.get("discoverymethod"),
+        "hostname": obj.get("hostname"),
+        "description": obj.get("description", ""),
+    }
 
 @app.get("/")
 def home():
     return {"message": "Space backend is running"}
 
 @app.get("/search")
-def search(name: str = None):
+def search(name: str = None, type: str = None, distance: float = None):
+
     results = cache_data
+
     if name:
-        results = [obj for obj in results if name.lower() in obj["pl_name"].lower()]
+        results = [
+            obj for obj in results
+            if name.lower() in (obj.get("name") or "").lower()
+        ]
+
+    if type:
+        results = [
+            obj for obj in results
+            if obj.get("type") == type
+        ]
+
+    if distance:
+        results = [
+            obj for obj in results
+            if obj.get("distance") is not None
+            and obj["distance"] <= float(distance)
+        ]
+
     return results
+
+@app.get("/debug-stars")
+def debug_stars():
+    return load_simbad_stars()
 
 def get_type(obj):
     name = obj.get("pl_name", "").lower()
