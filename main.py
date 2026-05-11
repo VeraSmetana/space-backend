@@ -35,7 +35,7 @@ def search(name: str = None):
         results = [obj for obj in results if name.lower() in obj["pl_name"].lower()]
     return results
 
-    def make_description(obj):
+def make_description(obj):
     name = obj.get("pl_name", "This planet")
     star = obj.get("hostname", "its star")
     dist = obj.get("sy_dist")
