@@ -20,48 +20,27 @@ cache_data = {}
 # SIMBAD STARS
 # -----------------------------
 def load_simbad_stars():
-    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
-
-    query = """
-    SELECT TOP 50 main_id, ra, dec
-    FROM basic
-    WHERE otype_txt = 'Star'
-    """
+    url = "https://simbad.u-strasbg.fr/simbad/sim-id"
 
     params = {
-        "query": query,
-        "format": "json"
+        "Ident": "Vega",
+        "output.format": "VOTable"
     }
 
     response = requests.get(url, params=params)
-    
-    print("SIMBAD status:", response.status_code)
-    print("SIMBAD raw:", response.text[:300])
-    print("SIMBAD RAW:", response.text[:500])
 
     print("SIMBAD status:", response.status_code)
-    print("SIMBAD raw:", response.text[:200])
 
-    try:
-        data = response.json()
-    except Exception:
-        return []
-
-    rows = data.get("data", [])
-
-    stars = []
-    for row in rows:
-        stars.append({
-            "id": f"star_{row[0]}",
-            "name": row[0],
-            "type": "star",
-            "ra": row[1],
-            "dec": row[2],
-            "distance": None,
-            "description": "Star from SIMBAD"
-        })
-
-    return stars
+    # we don't parse this yet — just return a known object so pipeline works
+    return [{
+        "id": "star_vega",
+        "name": "Vega",
+        "type": "star",
+        "distance": None,
+        "ra": None,
+        "dec": None,
+        "description": "Fallback star (SIMBAD working test)"
+    }]
 
 
 # -----------------------------
