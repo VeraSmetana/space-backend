@@ -142,16 +142,16 @@ def load_data():
             "description": None
         })
 
-    stars = load_simbad_stars()
+        stars = load_simbad_stars()
     galaxies = load_galaxies()
 
     all_objects = planets + stars + galaxies
 
-cache_data.clear()
+    cache_data.clear()
 
-for obj in all_objects:
-    if obj.get("id"):
-        cache_data[obj["id"]] = obj
+    for obj in all_objects:
+        if obj.get("id"):
+            cache_data[obj["id"]] = obj
 
 
 # -----------------------------
