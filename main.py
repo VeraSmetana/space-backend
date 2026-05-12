@@ -142,7 +142,7 @@ def load_data():
             "description": None
         })
 
-        stars = load_simbad_stars()
+    stars = load_simbad_stars()
     galaxies = load_galaxies()
 
     all_objects = planets + stars + galaxies
