@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-cache_data = []
+cache_data = {}
 
 
 # -----------------------------
@@ -48,6 +48,7 @@ def load_simbad_stars():
 
     for row in data.get("data", []):
         stars.append({
+            "id": f"star_{str(row[0]).replace(' ', '_')}",
             "name": row[0],
             "type": "star",
             "distance": None,
@@ -91,6 +92,7 @@ def load_galaxies():
 
     for row in data.get("data", []):
         galaxies.append({
+            "id": f"gal_{str(row[0]).replace(' ', '_')}",
             "name": row[0],
             "type": "galaxy",
             "distance": None,
@@ -129,6 +131,7 @@ def load_data():
 
     for p in planets_raw:
         planets.append({
+            "id": f"exo_{p.get('pl_name', '').replace(' ', '_')}",
             "name": p.get("pl_name"),
             "type": "exoplanet",
             "distance": p.get("sy_dist"),
@@ -142,7 +145,13 @@ def load_data():
     stars = load_simbad_stars()
     galaxies = load_galaxies()
 
-    cache_data[:] = planets + stars + galaxies
+    all_objects = planets + stars + galaxies
+
+cache_data.clear()
+
+for obj in all_objects:
+    if obj.get("id"):
+        cache_data[obj["id"]] = obj
 
 
 # -----------------------------
@@ -159,7 +168,7 @@ def home():
 @app.get("/search")
 def search(name: str = None, type: str = None, distance: float = None):
 
-    results = cache_data
+    results = list(cache_data.values())
 
     if name:
         results = [
@@ -214,27 +223,21 @@ def make_description(obj):
 # SINGLE OBJECT
 # -----------------------------
 @app.get("/object")
-def get_object(name: str):
+def get_object(id: str):
+    obj = cache_data.get(id)
 
-    name = name.strip().lower()
+    if not obj:
+        return {"error": "Object not found"}
 
-    for obj in cache_data:
+    obj["description"] = make_description(obj)
 
-        obj_name = (obj.get("name") or obj.get("pl_name") or "").lower()
+    obj_name = obj.get("name", "Unknown")
 
-        if obj_name == name:
+    obj["links"] = [
+        f"https://en.wikipedia.org/wiki/{obj_name.replace(' ', '_')}"
+    ]
 
-            obj["description"] = make_description(obj)
-
-            obj_name_raw = obj.get("name") or obj.get("pl_name")
-
-            obj["links"] = [
-                f"https://en.wikipedia.org/wiki/{obj_name_raw.replace(' ', '_')}",
-            ]
-
-            return obj
-
-    return {"error": "Object not found"}
+    return obj
 
 
 # -----------------------------
