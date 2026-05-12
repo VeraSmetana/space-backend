@@ -23,10 +23,9 @@ def load_simbad_stars():
     url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
 
     query = """
-    SELECT main_id, ra, dec
+    SELECT TOP 50 main_id, ra, dec
     FROM basic
-    WHERE otype = 'Star'
-    LIMIT 50
+    WHERE otype_txt = 'Star'
     """
 
     params = {
@@ -35,32 +34,30 @@ def load_simbad_stars():
     }
 
     response = requests.get(url, params=params)
-
+    
     print("SIMBAD status:", response.status_code)
     print("SIMBAD raw:", response.text[:300])
+    print("SIMBAD RAW:", response.text[:500])
 
-    if response.status_code != 200:
-        print("SIMBAD failed:", response.text[:200])
-        return []
+    print("SIMBAD status:", response.status_code)
+    print("SIMBAD raw:", response.text[:200])
 
     try:
         data = response.json()
     except Exception:
-        print("SIMBAD JSON parse failed")
         return []
 
     rows = data.get("data", [])
 
     stars = []
-
     for row in rows:
         stars.append({
             "id": f"star_{row[0]}",
             "name": row[0],
             "type": "star",
-            "distance": None,
             "ra": row[1],
             "dec": row[2],
+            "distance": None,
             "description": "Star from SIMBAD"
         })
 
@@ -74,10 +71,9 @@ def load_galaxies():
     url = "https://ned.ipac.caltech.edu/tap/sync"
 
     query = """
-    SELECT objname, z, ra, dec
+    SELECT TOP 50 objname, z, ra, dec
     FROM NEDTAP
-    WHERE objtype = 'G'
-    LIMIT 50
+    WHERE z > 0
     """
 
     params = {
@@ -89,27 +85,24 @@ def load_galaxies():
 
     print("NED status:", response.status_code)
     print("NED raw:", response.text[:300])
+    print("NED RAW:", response.text[:500])
 
-    if response.status_code != 200:
-        print("NED failed:", response.text[:200])
-        return []
+    print("NED status:", response.status_code)
+    print("NED raw:", response.text[:200])
 
     try:
         data = response.json()
     except Exception:
-        print("NED JSON parse failed")
         return []
 
     rows = data.get("data", [])
 
     galaxies = []
-
     for row in rows:
         galaxies.append({
             "id": f"gal_{row[0]}",
             "name": row[0],
             "type": "galaxy",
-            "distance": None,
             "redshift": row[1],
             "ra": row[2],
             "dec": row[3],
