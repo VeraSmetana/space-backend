@@ -20,39 +20,11 @@ cache_data = {}
 # SIMBAD STARS
 # -----------------------------
 def load_simbad_stars():
-    url = "https://simbad.u-strasbg.fr/simbad/sim-id"
-
-    params = {
-        "Ident": "Vega",
-        "output.format": "VOTable"
-    }
-
-    response = requests.get(url, params=params)
-
-    print("SIMBAD status:", response.status_code)
-
-    # we don't parse this yet — just return a known object so pipeline works
-    return [{
-        "id": "star_vega",
-        "name": "Vega",
-        "type": "star",
-        "distance": None,
-        "ra": None,
-        "dec": None,
-        "description": "Fallback star (SIMBAD working test)"
-    }]
-
-
-# -----------------------------
-# GALAXIES (NED)
-# -----------------------------
-def load_galaxies():
-    url = "https://ned.ipac.caltech.edu/tap/sync"
+    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
 
     query = """
-    SELECT TOP 50 objname, z, ra, dec
-    FROM NEDTAP
-    WHERE z > 0
+    SELECT TOP 5 main_id, ra, dec
+    FROM basic
     """
 
     params = {
@@ -62,33 +34,74 @@ def load_galaxies():
 
     response = requests.get(url, params=params)
 
-    print("NED status:", response.status_code)
-    print("NED raw:", response.text[:300])
-    print("NED RAW:", response.text[:500])
+    print("SIMBAD STATUS:", response.status_code)
+    print("SIMBAD RAW:", response.text[:1000])
 
-    print("NED status:", response.status_code)
-    print("NED raw:", response.text[:200])
+    return []
 
-    try:
-        data = response.json()
-    except Exception:
+# -----------------------------
+# GALAXIES (NED)
+# -----------------------------
+import csv
+from io import StringIO
+
+def load_galaxies():
+    url = "https://ned.ipac.caltech.edu/tap/sync"
+
+    query = """
+    SELECT TOP 20
+        objname,
+        z,
+        ra,
+        dec
+    FROM NEDTAP
+    WHERE z IS NOT NULL
+    """
+
+    params = {
+        "query": query,
+        "format": "csv"
+    }
+
+    response = requests.get(url, params=params)
+
+    print("NED STATUS:", response.status_code)
+    print("NED RAW (first 300 chars):", response.text[:300])
+
+    if response.status_code != 200:
         return []
 
-    rows = data.get("data", [])
+    try:
+        f = StringIO(response.text)
+        reader = csv.reader(f)
 
-    galaxies = []
-    for row in rows:
-        galaxies.append({
-            "id": f"gal_{row[0]}",
-            "name": row[0],
-            "type": "galaxy",
-            "redshift": row[1],
-            "ra": row[2],
-            "dec": row[3],
-            "description": "Galaxy from NED"
-        })
+        rows = list(reader)
 
-    return galaxies
+        # skip header row if it exists
+        if rows and "objname" in rows[0][0].lower():
+            rows = rows[1:]
+
+        galaxies = []
+
+        for row in rows:
+            if len(row) < 4:
+                continue
+
+            galaxies.append({
+                "id": f"gal_{row[0].replace(' ', '_')}",
+                "name": row[0],
+                "type": "galaxy",
+                "redshift": row[1],
+                "ra": row[2],
+                "dec": row[3],
+                "description": "Galaxy from NED database"
+            })
+
+        return galaxies
+
+    except Exception as e:
+        print("NED parsing error:", e)
+        return []
 
 
 # -----------------------------
