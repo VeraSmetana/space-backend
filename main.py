@@ -42,67 +42,52 @@ def load_simbad_stars():
 # -----------------------------
 # GALAXIES (NED)
 # -----------------------------
-import csv
-from io import StringIO
+import requests
 
 def load_galaxies():
-    url = "https://ned.ipac.caltech.edu/tap/sync"
+    base_url = "https://ned.ipac.caltech.edu/byname"
 
-    query = """
-    SELECT TOP 20
-        objname,
-        z,
-        ra,
-        dec
-    FROM NEDTAP
-    WHERE z IS NOT NULL
-    """
+    galaxy_queries = ["NGC", "IC", "M", "UGC"]
 
-    params = {
-        "query": query,
-        "format": "csv"
-    }
+    galaxies = []
 
-    response = requests.get(url, params=params)
+    for q in galaxy_queries:
+        url = f"{base_url}?objname={q}&of=xml_main"
 
-    print("NED STATUS:", response.status_code)
-    print("NED RAW (first 300 chars):", response.text[:300])
+        response = requests.get(url)
 
-    if response.status_code != 200:
-        return []
+        print(f"NED query {q} status:", response.status_code)
 
-    try:
-        f = StringIO(response.text)
-        reader = csv.reader(f)
+        if response.status_code != 200:
+            continue
 
-        rows = list(reader)
+        text = response.text
 
-        # skip header row if it exists
-        if rows and "objname" in rows[0][0].lower():
-            rows = rows[1:]
+        # VERY lightweight parsing (we extract names only safely)
+        # We avoid full XML parsing to keep it simple + stable
 
-        galaxies = []
+        lines = text.split("\n")
 
-        for row in rows:
-            if len(row) < 4:
+        for line in lines:
+            if "Object Name" in line or "objname" in line.lower():
                 continue
 
-            galaxies.append({
-                "id": f"gal_{row[0].replace(' ', '_')}",
-                "name": row[0],
-                "type": "galaxy",
-                "redshift": row[1],
-                "ra": row[2],
-                "dec": row[3],
-                "description": "Galaxy from NED database"
-            })
+            # crude but effective filtering for catalog hits
+            if q in line and len(line) < 120:
+                name = line.strip().replace("<", "").replace(">", "")
 
-        return galaxies
+                galaxies.append({
+                    "id": f"gal_{name.replace(' ', '_')}",
+                    "name": name,
+                    "type": "galaxy",
+                    "distance": None,
+                    "description": "Galaxy from NASA/IPAC NED"
+                })
 
-    except Exception as e:
-        print("NED parsing error:", e)
-        return []
+    # remove duplicates
+    unique = {g["id"]: g for g in galaxies}
 
+    return list(unique.values())
 
 # -----------------------------
 # LOAD ALL DATA
