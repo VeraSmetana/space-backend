@@ -154,16 +154,18 @@ def search(name: str = None, type: str = None, distance: float = None):
 
     results = list(cache_data.values())
 
-    if name:
-        results = [
-            obj for obj in results
-            if name.lower() in (obj.get("name") or "").lower()
-        ]
-
+    # TYPE FILTER FIRST (important)
     if type:
         results = [
             obj for obj in results
             if obj.get("type") == type
+        ]
+
+    # THEN NAME FILTER
+    if name:
+        results = [
+            obj for obj in results
+            if name.lower() in (obj.get("name") or "").lower()
         ]
 
     if distance:
