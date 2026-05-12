@@ -20,41 +20,48 @@ cache_data = {}
 # SIMBAD STARS
 # -----------------------------
 def load_simbad_stars():
+    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
+
     query = """
-    SELECT main_id, ra, dec, otype
+    SELECT main_id, ra, dec
     FROM basic
     WHERE otype = 'Star'
     LIMIT 50
     """
 
-    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
     params = {
         "query": query,
         "format": "json"
     }
 
-    full_url = url + "?" + urllib.parse.urlencode(params)
-    response = requests.get(full_url)
+    response = requests.get(url, params=params)
+
+    print("SIMBAD status:", response.status_code)
+    print("SIMBAD raw:", response.text[:300])
 
     if response.status_code != 200:
+        print("SIMBAD failed:", response.text[:200])
         return []
 
     try:
         data = response.json()
     except Exception:
+        print("SIMBAD JSON parse failed")
         return []
+
+    rows = data.get("data", [])
 
     stars = []
 
-    for row in data.get("data", []):
+    for row in rows:
         stars.append({
-            "id": f"star_{str(row[0]).replace(' ', '_')}",
+            "id": f"star_{row[0]}",
             "name": row[0],
             "type": "star",
             "distance": None,
             "ra": row[1],
             "dec": row[2],
-            "description": "Star from SIMBAD catalog"
+            "description": "Star from SIMBAD"
         })
 
     return stars
@@ -67,7 +74,7 @@ def load_galaxies():
     url = "https://ned.ipac.caltech.edu/tap/sync"
 
     query = """
-    SELECT objname, objtype, z, ra, dec
+    SELECT objname, z, ra, dec
     FROM NEDTAP
     WHERE objtype = 'G'
     LIMIT 50
@@ -80,26 +87,33 @@ def load_galaxies():
 
     response = requests.get(url, params=params)
 
+    print("NED status:", response.status_code)
+    print("NED raw:", response.text[:300])
+
     if response.status_code != 200:
+        print("NED failed:", response.text[:200])
         return []
 
     try:
         data = response.json()
     except Exception:
+        print("NED JSON parse failed")
         return []
+
+    rows = data.get("data", [])
 
     galaxies = []
 
-    for row in data.get("data", []):
+    for row in rows:
         galaxies.append({
-            "id": f"gal_{str(row[0]).replace(' ', '_')}",
+            "id": f"gal_{row[0]}",
             "name": row[0],
             "type": "galaxy",
             "distance": None,
-            "redshift": row[2],
-            "ra": row[3],
-            "dec": row[4],
-            "description": "Galaxy from NASA/IPAC Extragalactic Database"
+            "redshift": row[1],
+            "ra": row[2],
+            "dec": row[3],
+            "description": "Galaxy from NED"
         })
 
     return galaxies
