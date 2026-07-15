@@ -135,10 +135,10 @@ def load_data():
         except Exception:
             planets_raw = []
 
-    planets = []
+    cache_data.clear()
 
     for p in planets_raw:
-        planets.append({
+        obj = {
             "id": f"exo_{p.get('pl_name', '').replace(' ', '_')}",
             "name": p.get("pl_name"),
             "type": "exoplanet",
@@ -148,18 +148,9 @@ def load_data():
             "discoverymethod": p.get("discoverymethod"),
             "hostname": p.get("hostname"),
             "description": None
-        })
+        }
 
-    stars = load_simbad_stars()
-    galaxies = load_galaxies()
-
-    all_objects = planets + stars + galaxies
-
-    cache_data.clear()
-
-    for obj in all_objects:
-        if obj.get("id"):
-            cache_data[obj["id"]] = obj
+        cache_data[obj["id"]] = obj
 
 
 # -----------------------------
