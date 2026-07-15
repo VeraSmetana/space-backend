@@ -20,28 +20,58 @@ cache_data = {}
 # SIMBAD STARS
 # -----------------------------
 def search_simbad(name):
-    url = "https://simbad.cds.unistra.fr/simbad/sim-tap/sync"
+    if not name:
+        return []
 
-    query = f"""
-    SELECT TOP 10
-        basic.main_id,
-        basic.ra,
-        basic.dec,
-        basic.otype
-    FROM basic
-    JOIN ident
-        ON basic.oid = ident.oidref
-    WHERE id = '{name}'
-    """
+    url = "https://simbad.cds.unistra.fr/simbad/sim-id"
 
     params = {
-        "request": "doQuery",
-        "lang": "adql",
-        "format": "json",
-        "query": query
+        "Ident": name,
+        "output.format": "json"
     }
 
     response = requests.get(url, params=params)
+
+    print("SIMBAD STATUS:", response.status_code)
+
+    if response.status_code != 200:
+        return []
+
+    try:
+        data = response.json()
+    except Exception:
+        print(response.text[:500])
+        return []
+
+    try:
+        main_id = data["data"]["main_id"]
+    except Exception:
+        return []
+
+    return [{
+        "id": f"star_{main_id.replace(' ', '_')}",
+        "name": main_id,
+        "type": "star",
+        "distance": None,
+        "description": "Star from SIMBAD"
+    }]
+# -----------------------------
+# GALAXIES (NED)
+# -----------------------------
+def search_ned(name):
+    if not name:
+        return []
+
+    url = "https://ned.ipac.caltech.edu/srs/ObjectLookup"
+
+    params = {
+        "name": name
+    }
+
+    response = requests.get(url, params=params)
+
+    print("NED STATUS:", response.status_code)
+    print("NED RESPONSE:", response.text[:300])
 
     if response.status_code != 200:
         return []
@@ -51,67 +81,18 @@ def search_simbad(name):
     except Exception:
         return []
 
-    stars = []
+    preferred = data.get("Preferred")
 
-    for row in data.get("data", []):
-        stars.append({
-            "id": f"star_{row[0].replace(' ', '_')}",
-            "name": row[0],
-            "type": "star",
-            "distance": None,
-            "ra": row[1],
-            "dec": row[2],
-            "description": "Star from SIMBAD"
-        })
+    if not preferred:
+        return []
 
-    return stars
-# -----------------------------
-# GALAXIES (NED)
-# -----------------------------
-import requests
-
-def load_galaxies():
-    base_url = "https://ned.ipac.caltech.edu/byname"
-
-    galaxy_queries = ["NGC", "IC", "M", "UGC"]
-
-    galaxies = []
-
-    for q in galaxy_queries:
-        url = f"{base_url}?objname={q}&of=xml_main"
-
-        response = requests.get(url)
-
-        print(f"NED query {q} status:", response.status_code)
-
-        if response.status_code != 200:
-            continue
-
-        text = response.text
-
-
-        lines = text.split("\n")
-
-        for line in lines:
-            if "Object Name" in line or "objname" in line.lower():
-                continue
-
-            # crude but effective filtering for catalog hits
-            if q in line and len(line) < 120:
-                name = line.strip().replace("<", "").replace(">", "")
-
-                galaxies.append({
-                    "id": f"gal_{name.replace(' ', '_')}",
-                    "name": name,
-                    "type": "galaxy",
-                    "distance": None,
-                    "description": "Galaxy from NASA/IPAC NED"
-                })
-
-    # remove duplicates
-    unique = {g["id"]: g for g in galaxies}
-
-    return list(unique.values())
+    return [{
+        "id": f"gal_{preferred.get('Name','unknown').replace(' ', '_')}",
+        "name": preferred.get("Name"),
+        "type": "galaxy",
+        "distance": None,
+        "description": "Galaxy from NASA/IPAC NED"
+    }]
 
 # -----------------------------
 # LOAD ALL DATA
@@ -164,32 +145,29 @@ def home():
 # -----------------------------
 # SEARCH
 # -----------------------------
-@app.get("/search")
-def search(name: str = None, type: str = None, distance: float = None):
+@@app.get("/search")
+def search(name: str = "", type: str = "", distance: float = None):
+
+    type = type.lower()
+
+    if type == "star":
+        return search_simbad(name)
+
+    if type == "galaxy":
+        return search_ned(name)
 
     results = list(cache_data.values())
 
-    # TYPE FILTER FIRST (important)
-    if type:
+    if type == "exoplanet":
         results = [
             obj for obj in results
-            if obj.get("type") == type
+            if obj.get("type") == "exoplanet"
         ]
-    if type and type.lower() == "star":
-        return search_simbad(name)
 
-    # THEN NAME FILTER
     if name:
         results = [
             obj for obj in results
-            if name.lower() in (obj.get("name") or "").lower()
-        ]
-
-    if distance:
-        results = [
-            obj for obj in results
-            if obj.get("distance") is not None
-            and obj["distance"] <= float(distance)
+            if name.lower() in obj.get("name","").lower()
         ]
 
     return results
