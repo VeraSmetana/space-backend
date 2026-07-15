@@ -185,8 +185,8 @@ def search(name: str = None, type: str = None, distance: float = None):
             if obj.get("type") == type
         ]
     if type and type.lower() == "star":
-    return search_simbad(name)
-    
+        return search_simbad(name)
+
     # THEN NAME FILTER
     if name:
         results = [
