@@ -145,7 +145,7 @@ def home():
 # -----------------------------
 # SEARCH
 # -----------------------------
-@@app.get("/search")
+@app.get("/search")
 def search(name: str = "", type: str = "", distance: float = None):
 
     type = type.lower()
