@@ -19,26 +19,52 @@ cache_data = {}
 # -----------------------------
 # SIMBAD STARS
 # -----------------------------
-def load_simbad_stars():
-    url = "https://simbad.u-strasbg.fr/simbad/sim-tap/sync"
+def search_simbad(name):
+    url = "https://simbad.cds.unistra.fr/simbad/sim-tap/sync"
 
-    query = """
-    SELECT TOP 5 main_id, ra, dec
+    query = f"""
+    SELECT TOP 10
+        basic.main_id,
+        basic.ra,
+        basic.dec,
+        basic.otype
     FROM basic
+    JOIN ident
+        ON basic.oid = ident.oidref
+    WHERE id = '{name}'
     """
 
     params = {
-        "query": query,
-        "format": "json"
+        "request": "doQuery",
+        "lang": "adql",
+        "format": "json",
+        "query": query
     }
 
     response = requests.get(url, params=params)
 
-    print("SIMBAD STATUS:", response.status_code)
-    print("SIMBAD RAW:", response.text[:1000])
+    if response.status_code != 200:
+        return []
 
-    return []
+    try:
+        data = response.json()
+    except Exception:
+        return []
 
+    stars = []
+
+    for row in data.get("data", []):
+        stars.append({
+            "id": f"star_{row[0].replace(' ', '_')}",
+            "name": row[0],
+            "type": "star",
+            "distance": None,
+            "ra": row[1],
+            "dec": row[2],
+            "description": "Star from SIMBAD"
+        })
+
+    return stars
 # -----------------------------
 # GALAXIES (NED)
 # -----------------------------
@@ -63,8 +89,6 @@ def load_galaxies():
 
         text = response.text
 
-        # VERY lightweight parsing (we extract names only safely)
-        # We avoid full XML parsing to keep it simple + stable
 
         lines = text.split("\n")
 
@@ -160,7 +184,9 @@ def search(name: str = None, type: str = None, distance: float = None):
             obj for obj in results
             if obj.get("type") == type
         ]
-
+    if type and type.lower() == "star":
+    return search_simbad(name)
+    
     # THEN NAME FILTER
     if name:
         results = [
