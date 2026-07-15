@@ -33,6 +33,7 @@ def search_simbad(name):
     response = requests.get(url, params=params)
 
     print("SIMBAD STATUS:", response.status_code)
+    print("SIMBAD RESPONSE:", response.text[:500])
 
     if response.status_code != 200:
         return []
@@ -40,17 +41,13 @@ def search_simbad(name):
     try:
         data = response.json()
     except Exception:
-        print(response.text[:500])
         return []
 
-    try:
-        main_id = data["data"]["main_id"]
-    except Exception:
-        return []
+    print("SIMBAD JSON:", data)
 
     return [{
-        "id": f"star_{main_id.replace(' ', '_')}",
-        "name": main_id,
+        "id": "test_star",
+        "name": name,
         "type": "star",
         "distance": None,
         "description": "Star from SIMBAD"
@@ -64,34 +61,23 @@ def search_ned(name):
 
     url = "https://ned.ipac.caltech.edu/srs/ObjectLookup"
 
-    params = {
-        "name": name
-    }
-
-    response = requests.get(url, params=params)
+    response = requests.get(
+        url,
+        params={"name": name}
+    )
 
     print("NED STATUS:", response.status_code)
-    print("NED RESPONSE:", response.text[:300])
+    print("NED RESPONSE:", response.text[:500])
 
     if response.status_code != 200:
         return []
 
-    try:
-        data = response.json()
-    except Exception:
-        return []
-
-    preferred = data.get("Preferred")
-
-    if not preferred:
-        return []
-
     return [{
-        "id": f"gal_{preferred.get('Name','unknown').replace(' ', '_')}",
-        "name": preferred.get("Name"),
+        "id": "test_galaxy",
+        "name": name,
         "type": "galaxy",
         "distance": None,
-        "description": "Galaxy from NASA/IPAC NED"
+        "description": "Galaxy from NED"
     }]
 
 # -----------------------------
